@@ -75,6 +75,10 @@ LOGGLY_PASSWORD=
 #if this variable is set to true then suppress all prompts
 SUPPRESS_PROMPT="false"
 
+#if this variable is "true", we are in batch mode: no remote tests are run
+#and only account and token are required.
+BATCH_MODE="false"
+
 #variables used in 22-loggly.conf file
 LOGGLY_SYSLOG_PORT=6514
 LOGGLY_DISTRIBUTION_ID="41058"
@@ -127,17 +131,22 @@ checkLinuxLogglyCompatibility() {
   #check if the Loggly servers are accessible. If no, ask user to check network connectivity & exit
   checkIfLogglyServersAccessible
 
-  #check if user credentials are valid. If no, then exit
-  checkIfValidUserNamePassword
+  #if we have username and password, check and verify account
+  if [ "$LOGGLY_USERNAME" != "" -a "$LOGGLY_PASSWORD" != "" ]; then
 
-  #get authentication token if not provided
-  getAuthToken
+    #check if user credentials are valid. If no, then exit
+    checkIfValidUserNamePassword
 
-  #check if authentication token is valid. If no, then exit.
-  checkIfValidAuthToken
+    #get authentication token if not provided
+    getAuthToken
 
-  #checking if syslog-ng is configured as a service
-  checkifSyslogNgConfiguredAsService
+    #check if authentication token is valid. If no, then exit.
+    checkIfValidAuthToken
+
+    #checking if syslog-ng is configured as a service
+    checkifSyslogNgConfiguredAsService
+
+  fi
 
   #check if systemd is present in machine.
   checkIfSystemdConfigured
@@ -987,6 +996,7 @@ checkScriptRunningMode() {
 usage() {
   cat <<EOF
 usage: configure-linux [-a loggly auth account or subdomain] [-t loggly token (optional)] [-u username] [-p password (optional)] [-s suppress prompts {optional)] [--insecure {to send logs without TLS} (optional)[--force-secure {optional} ]
+usage: configure-linux [-a loggly auth account or subdomain] [-t loggly token ] --batch [--insecure {to send logs without TLS} (optional)[--force-secure {optional} ]
 usage: configure-linux [-a loggly auth account or subdomain] [-r to remove]
 usage: configure-linux [-h for help]
 EOF
@@ -1035,6 +1045,11 @@ if [ "$1" != "being-invoked" ]; then
         LOGGLY_TLS_SENDING="true"
         LOGGLY_SYSLOG_PORT=6514
         ;;
+      --batch)
+        BATCH_MODE="true"
+        LINUX_DO_VERIFICATION="false"
+        SUPPRESS_PROMPT="true"
+        ;;
       -h | --help)
         usage
         exit
@@ -1054,6 +1069,9 @@ if [ "$1" != "being-invoked" ]; then
     if [ "$LOGGLY_PASSWORD" = "" ]; then
       getPassword
     fi
+    installLogglyConf
+  else
+  elif [ "$LOGGLY_ACCOUNT" != "" -a "$BATCH_MODE" == "true" ]; then
     installLogglyConf
   else
     usage
