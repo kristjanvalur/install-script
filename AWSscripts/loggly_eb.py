@@ -1,9 +1,26 @@
 #!/usr/bin/env python
-#
 # loggly_eb.py
-# For configuring loggly on AWD elastic beanstalk instances.
-# Tested on the following EB configurations:
-# 64 bit Amazon Linux 2017.03 v.2.5.2 running Python 3.4
+
+'''
+For configuring loggly on AWD elastic beanstalk instances.
+Tested on the following EB configurations:
+64 bit Amazon Linux 2017.03 v.2.5.2 running Python 3.4
+
+This is a RHEL-like linux, with rsyslog and no journald.
+No checks are made at runtime to test the validity of the account/token or to verify
+log delivery.  Use the regular 'configure-linux.sh' script interactively for that.
+
+Settings are taken from environment variables, overridable with command line arguments:
+
+- LOGGLY_ACCOUNT - the account name at Loggly
+- LOGGLY_TOKEN - the loggly authentication token (a UUID) for submitting data
+- LOGGLY_TAGS - a space-separated string of additional tags to apply to the log
+- LOGGLY_HOSTNAME - the hostname to report in syslog.  If not specified, the default
+  as reported by gethostname() is used.
+
+
+'''
+
 
 
 from __future__ import print_function
@@ -16,8 +33,8 @@ import textwrap
 import shutil
 import six
 
-LOGGLY_DISTRIBUTION_ID = "41058"
-LOGS_01_HOST = "logs-01.loggly.com"
+LOGGLY_DISTRIBUTION_ID = '41058'
+LOGS_01_HOST = 'logs-01.loggly.com'
 LOGGLY_SYSLOG_PORT = 514
 
 # directory location for syslog
