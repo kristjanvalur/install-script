@@ -17,6 +17,8 @@ Settings are taken from environment variables, overridable with command line arg
 - LOGGLY_TAGS - a space-separated string of additional tags to apply to the log
 - LOGGLY_HOSTNAME - the hostname to report in syslog.  If not specified, the default
   as reported by gethostname() is used.
+- LOGGLY_DOMAIN - domain name appended to hostname.  Useful to name a cluster of
+  virtual hosts.
 
 
 '''
@@ -25,12 +27,14 @@ Settings are taken from environment variables, overridable with command line arg
 
 from __future__ import print_function
 import os
+import os.path
 import sys
 import argparse
 import subprocess
 import shlex
 import textwrap
 import shutil
+import socket
 import six
 
 LOGGLY_DISTRIBUTION_ID = '41058'
@@ -55,6 +59,7 @@ def main():
     parser.add_argument('--token', '-t', default=os.environ.get('LOGGLY_TOKEN'), help='The Loggly authentication token (default from LOGGLY_TOKEN)')
     parser.add_argument('--tags', nargs='*', help='Additional tags (default from LOGGLY_TAGS)')
     parser.add_argument('--hostname', default=os.environ.get('LOGGLY_HOSTNAME'))
+    parser.add_argument('--domain', default=os.environ.get('LOGGLY_DOMAIN'))
     parser.add_argument('--remove', '-r', action='store_true', help='remove loggly configuration')
 
     args = parser.parse_args()
@@ -64,8 +69,10 @@ def main():
         return
 
     if not args.account or not args.token:
-        parser.print_usage()
-        sys.exit(1)
+       # No loggly configuration
+        print("No Loggly credentials. '%s -h' for help" % parser.prog)
+        unconfigure(quiet=True)
+        return
 
     if args.tags is not None:
         tags = args.tags
@@ -79,6 +86,7 @@ def main():
         'token': args.token,
         'tags': tags,
         'hostname': args.hostname,
+        'domain' : args.domain,
     }
     configure(config)
 
@@ -117,7 +125,11 @@ def write_rsyslog_conf(config):
     log("INFO: Loggly rsyslog file %r written." % LOGGLY_RSYSLOG_CONFFILE)
 
 
-def unconfigure():
+def unconfigure(quiet=False):
+    # in quiet mode, don't log anything if not configured
+    if quiet and not os.path.exists(LOGGLY_RSYSLOG_CONFFILE):
+        return
+
     log("INFO: Initiating uninstall Loggly for Linux.")
 
     # remove 22-loggly.conf file
@@ -133,6 +145,7 @@ def remove_loggly_conf():
     '''delete 22-loggly.conf file'''
     if os.path.exists(LOGGLY_RSYSLOG_CONFFILE):
         os.unlink(LOGGLY_RSYSLOG_CONFFILE)
+        return True
 
 
 def restart_rsyslog():
@@ -171,8 +184,16 @@ def get_loggly_conf(config):
 
     # preprocess data
     args = dict(config)
-    if not args.get('hostname'):
+    if not args.get('hostname') and not args.get('domain'):
+        # simply use the rsyslog macro
         args['hostname'] = '%HOSTNAME%'
+    else:
+        # construct a fixed hostname to send
+        if not args.get('hostname'):
+            args['hostname'] = socket.gethostname()
+        if args.get('domain'):
+            args['hostname'] = args['hostname'].split('.')[0] + '.' + args['domain']
+
     tags = ['Rsyslog']
     if args.get('tags'):
         tags += args['tags']
